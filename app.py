@@ -5,7 +5,7 @@ from flask import Flask, jsonify, request, session, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from dotenv import load_dotenv
-from datetime import 
+from datetime import datetime
 import os
 import bcrypt
 import stripe
@@ -22,12 +22,17 @@ app.config['MAX_CONTENT_LENGTH'] = 10737418240
 
 db = SQLAlchemy(app)
 CORS(app)
-
-# Créer les tables automatiquement
-with app.app_context():
-    db.create_all()
-
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+
+# Variable pour tracker la création des tables
+tables_created = False
+
+def create_tables():
+    global tables_created
+    if not tables_created:
+        with app.app_context():
+            db.create_all()
+            tables_created = True
 
 s3 = boto3.client('s3',
     aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
@@ -400,6 +405,7 @@ def file_detail(file_id):
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
+    create_tables()
     data = request.json
     if User.query.filter_by(email=data['email']).first():
         return {'error': 'Email déjà utilisé'}, 400
@@ -412,6 +418,7 @@ def api_register():
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
+    create_tables()
     data = request.json
     user = User.query.filter_by(email=data['email']).first()
     if not user or not user.check_password(data['password']):

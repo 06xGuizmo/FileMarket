@@ -1,0 +1,10 @@
+Flask==2.3.6
+Flask-SQLAlchemy==3.0.5
+Flask-CORS==4.0.0
+python-dotenv==1.0.0
+Werkzeug==2.3.6
+stripe==5.14.0
+boto3==1.28.85
+psycopg2-binary==2.9.9
+bcrypt==4.1.1
+gunicorn==21.2.0

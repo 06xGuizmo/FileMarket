@@ -8,24 +8,3 @@ boto3==1.28.85
 psycopg2-binary==2.9.9
 bcrypt==4.1.1
 gunicorn==21.2.0
-SQL:**
-
-1. Allez sur votre repo GitHub: https://github.com/06xGuizmo/FileMarket
-2. Cliquez sur `requirements.txt`
-3. Cliquez sur l'icône **"Edit"** (crayon)
-4. **Remplacez** tout le contenu par les versions ci-dessus
-5. Cliquez **"Commit changes"**
-
----
-
-## 🔄 **Redémarrer le déploiement**
-
-Une fois que c'est modifié:
-
-1. Allez sur Render
-2. Cliquez sur **"Manual Deploy"**
-3. Sélectionnez **"Deploy latest commit"**
-
-Ça devrait marcher maintenant! ✅
-
-Dites-moi quand c'est fait! 🚀

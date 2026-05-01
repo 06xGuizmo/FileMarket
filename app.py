@@ -9,7 +9,8 @@ from datetime import datetime
 import os
 import bcrypt
 import stripe
-import boto3
+import cloudinary
+import cloudinary.uploader
 import uuid
 from werkzeug.utils import secure_filename
 
@@ -22,7 +23,6 @@ app.config['MAX_CONTENT_LENGTH'] = 10737418240
 
 db = SQLAlchemy(app)
 CORS(app)
-stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
 # Variable pour tracker la création des tables
 tables_created = False
@@ -34,10 +34,13 @@ def create_tables():
             db.create_all()
             tables_created = True
 
-s3 = boto3.client('s3',
-    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-    region_name=os.getenv('AWS_REGION', 'eu-west-1')
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+
+# Configuration Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET')
 )
 
 # ========== MODELS ==========
@@ -61,7 +64,7 @@ class File(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     filename = db.Column(db.String(255))
-    s3_key = db.Column(db.String(255))
+    cloudinary_url = db.Column(db.String(500))
     file_size = db.Column(db.BigInteger)
     price = db.Column(db.Float)
     description = db.Column(db.Text)
@@ -306,6 +309,7 @@ def dashboard():
         formData.append('description', document.getElementById('description').value);
         const res = await fetch('/api/upload', { method: 'POST', body: formData });
         if (res.ok) { alert('✅ Fichier uploadé!'); loadDashboard(); document.querySelector('.upload-form').reset(); }
+        else { const data = await res.json(); alert('❌ Erreur: ' + data.error); }
     }
 </script>
 </body>
@@ -428,32 +432,34 @@ def api_login():
 
 @app.route('/api/upload', methods=['POST'])
 def api_upload():
+    create_tables()
     if 'user_id' not in session:
         return {'error': 'Not logged in'}, 401
     
-    file = request.files['file']
-    filename = secure_filename(file.filename)
-    s3_key = f"files/{session['user_id']}/{uuid.uuid4()}_{filename}"
-    
     try:
-        s3.upload_fileobj(file, os.getenv('AWS_S3_BUCKET'), s3_key)
-    except:
-        return {'error': 'Upload échoué'}, 500
-    
-    new_file = File(
-        owner_id=session['user_id'],
-        filename=request.form['filename'],
-        s3_key=s3_key,
-        file_size=len(file.read()),
-        price=float(request.form['price']),
-        description=request.form['description']
-    )
-    db.session.add(new_file)
-    db.session.commit()
-    return {'message': 'OK', 'file_id': new_file.id}, 201
+        file = request.files['file']
+        filename = secure_filename(file.filename)
+        
+        # Upload à Cloudinary
+        result = cloudinary.uploader.upload(file, folder=f"filemarket/{session['user_id']}")
+        
+        new_file = File(
+            owner_id=session['user_id'],
+            filename=request.form['filename'],
+            cloudinary_url=result['secure_url'],
+            file_size=result['bytes'],
+            price=float(request.form['price']),
+            description=request.form['description']
+        )
+        db.session.add(new_file)
+        db.session.commit()
+        return {'message': 'OK', 'file_id': new_file.id}, 201
+    except Exception as e:
+        return {'error': f'Upload failed: {str(e)}'}, 500
 
 @app.route('/api/files')
 def api_files():
+    create_tables()
     search = request.args.get('search', '')
     query = File.query
     if search:
@@ -470,6 +476,7 @@ def api_files():
 
 @app.route('/api/files/<int:file_id>')
 def api_file(file_id):
+    create_tables()
     f = File.query.get(file_id)
     return {
         'id': f.id,
@@ -483,6 +490,7 @@ def api_file(file_id):
 
 @app.route('/api/dashboard')
 def api_dashboard():
+    create_tables()
     if 'user_id' not in session:
         return {'error': 'Not logged in'}, 401
     user = User.query.get(session['user_id'])

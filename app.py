@@ -22,6 +22,11 @@ app.config['MAX_CONTENT_LENGTH'] = 10737418240
 
 db = SQLAlchemy(app)
 CORS(app)
+
+# Créer les tables automatiquement
+with app.app_context():
+    db.create_all()
+
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
 s3 = boto3.client('s3',
